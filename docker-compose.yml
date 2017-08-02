@@ -1,0 +1,7 @@
+version: '2'
+services:
+    bi-echo:
+        build: .
+        image: boundedinfinity/cidrranger:1
+        ports:
+            - 10601:8080
