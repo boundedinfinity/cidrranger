@@ -6,7 +6,37 @@ import (
     "io"
     "bufio"
     "log"
+    "errors"
 )
+
+type CalculatorServiceOption func(*CalculatorService) error
+
+type CalculatorService struct {
+    Thing1 string
+}
+
+func NewCalculatorService(options ...CalculatorServiceOption) (*CalculatorService, error) {
+    service := &CalculatorService{}
+
+    for _, option := range options {
+        if err := option(service); err != nil {
+            return nil, err
+        }
+    }
+
+    return service, nil
+}
+
+func Thing1(input string) CalculatorServiceOption {
+    return func(this *CalculatorService) error {
+        if input == "" {
+            return nil, errors.New("Invalid thing1")
+        }
+
+        this.Thing1 = input
+        return nil
+    }
+}
 
 var (
     Debug = true
