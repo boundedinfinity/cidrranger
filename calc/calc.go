@@ -6,80 +6,104 @@ import (
     "io"
     "bufio"
     "log"
-    "errors"
+    "os"
 )
 
-type CalculatorServiceOption func(*CalculatorService) error
-
 type CalculatorService struct {
-    Thing1 string
+    InputPath              string
+    Logger                 *log.Logger
+    Debug                  bool
+    RemoveBroadcastAddress bool
+    RemoveNetworkAddress   bool
 }
 
 func NewCalculatorService(options ...CalculatorServiceOption) (*CalculatorService, error) {
-    service := &CalculatorService{}
+    service := &CalculatorService{
+        Logger: log.New(os.Stdout, "CalculatorService", log.Lshortfile),
+        Debug: false,
+    }
 
-    for _, option := range options {
-        if err := option(service); err != nil {
-            return nil, err
-        }
+    if err := service.SetOptions(options...); err != nil {
+        return nil, err
     }
 
     return service, nil
 }
 
-func Thing1(input string) CalculatorServiceOption {
-    return func(this *CalculatorService) error {
-        if input == "" {
-            return nil, errors.New("Invalid thing1")
+func (this *CalculatorService) SetOptions(options ...CalculatorServiceOption) error {
+    for _, option := range options {
+        if err := option(this); err != nil {
+            return err
         }
-
-        this.Thing1 = input
-        return nil
     }
+
+    return nil
 }
 
-var (
-    Debug = true
-)
+func (this *CalculatorService) loadFromFile() (io.ReadCloser, error) {
+    file, err := os.Open(this.InputPath)
 
-func FullRange(reader io.Reader) ([]net.IP, error) {
+    if err != nil {
+        return nil, err
+    }
+
+    reader := bufio.NewReader(file)
+
+    return struct {
+        io.Reader
+        io.Closer
+    }{reader, file}, nil
+}
+
+func (this *CalculatorService) FullRange() ([]net.IP, error) {
+    reader, err := this.loadFromFile()
+
+    if err != nil {
+        return nil, err
+    }
+
+    defer reader.Close()
+
     raw := make([]string, 0)
     scanner := bufio.NewScanner(reader)
 
     for scanner.Scan() {
         line := strings.TrimSpace(scanner.Text())
-        raw = append(raw, line)
+
+        if !this.ignoreLine(line) {
+            raw = append(raw, line)
+        }
     }
 
-    if Debug {
-        log.Printf("len(raw): %d\n", len(raw))
+    if this.Debug {
+        this.Logger.Printf("len(raw): %d\n", len(raw))
     }
 
-    dedupped := dedup(raw)
+    dedupped := this.dedup(raw)
 
-    if Debug {
-        log.Printf("len(dedupped): %d\n", len(dedupped))
+    if this.Debug {
+        this.Logger.Printf("len(dedupped): %d\n", len(dedupped))
     }
 
     ipr := make([]net.IP, 0)
 
-    for _, item := range dedupped {
-        temp1, err := iprange(item)
+    //for _, item := range dedupped {
+        //temp1, err := this.SubnetEndpointsFromCidr(item)
 
-        if err != nil {
-            return []net.IP{}, err
-        }
+        //if err != nil {
+        //    return []net.IP{}, err
+        //}
+	//
+        //temp2 := this.highlow(temp1)
+	//
+        //for _, ip := range temp2 {
+        //    ipr = append(ipr, ip)
+        //}
+    //}
 
-        temp2 := highlow(temp1)
+    //hl := this.highlow(ipr)
 
-        for _, ip := range temp2 {
-            ipr = append(ipr, ip)
-        }
-    }
-
-    hl := highlow(ipr)
-
-    return hl, nil
+    return ipr, nil
 }
 
 

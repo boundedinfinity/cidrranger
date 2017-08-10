@@ -56,7 +56,11 @@ go-purge:
 	rm -rf $(makefile_dir)/glide.lock
 
 go-test:
-	go test $(go_package)/...
+#	go test $$(go list $(go_package)/... | grep -v vendor)
+	go test -v $$(go list $(go_package)/... | grep -v vendor)
+
+go-test-watch:
+	CompileDaemon -command "make go-test"
 
 go-build:
 	go build $(go_package)
@@ -71,4 +75,4 @@ bower-purge:
 	rm -rf $(makefile_dir)/$(shell cat $(makefile_dir)/.bowerrc | jq -r .directory)
 
 compile-watch:
-	CompileDaemon -command "$(makefile_dir)/echo web"
+	CompileDaemon -command "$(makefile_dir)/cidrranger"

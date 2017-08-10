@@ -5,7 +5,197 @@ import (
     "net"
 )
 
+func getService() *CalculatorService {
+    service, _ := NewCalculatorService(
+        InputPath("./subnet-list-1.txt"),
+        Debug(true),
+    )
+
+    return service
+}
+
+func TestNetworkAddressFromCidr(t *testing.T) {
+    service := getService()
+    m := map[string]net.IP{
+        "165.137.176.0/24": net.IP([]byte{165, 137, 176, 0}),
+        "165.137.176.50/24": net.IP([]byte{165, 137, 176, 0}),
+        "165.137.176.5/16": net.IP([]byte{165, 137, 0, 0}),
+        "165.137.176.255/24": net.IP([]byte{165, 137, 176, 0}),
+    }
+
+    for cidr, expected := range m {
+        actual, err := service.NetworkAddressFromCidr(cidr)
+
+        if err != nil {
+            t.Fatalf("error parsing: %s", cidr)
+        }
+
+        if expected.String() != actual.String() {
+            t.Fatalf("expected[%s] != actual[%s]", expected, actual)
+        }
+    }
+}
+
+func TestBroadcastAddressFromCidr(t *testing.T) {
+    service := getService()
+    m := map[string]net.IP{
+        "165.137.176.0/24": net.IP([]byte{165, 137, 176, 255}),
+        "165.137.176.50/24": net.IP([]byte{165, 137, 176, 255}),
+        "165.137.176.5/16": net.IP([]byte{165, 137, 255, 255}),
+        "165.137.176.255/24": net.IP([]byte{165, 137, 176, 255}),
+    }
+
+    for cidr, expected := range m {
+        actual, err := service.BroadcastAddressFromCidr(cidr)
+
+        if err != nil {
+            t.Fatalf("error parsing: %s", cidr)
+        }
+
+        if expected.String() != actual.String() {
+            t.Fatalf("expected[%s] != actual[%s]", expected, actual)
+        }
+    }
+}
+
+func TestIncIP(t *testing.T) {
+    service := getService()
+    type temp struct {
+        input net.IP
+        next  net.IP
+    }
+
+    m := []temp{
+        {input: net.IP([]byte{165, 137, 176, 0}), next: net.IP([]byte{165, 137, 176, 1})},
+        {input: net.IP([]byte{165, 137, 176, 255}), next: net.IP([]byte{165, 137, 177, 0})},
+    }
+
+    for _, x := range m {
+        actual := service.IncIP(x.input)
+
+        if x.next.String() != actual.String() {
+            t.Fatalf("expected[%s] != actual[%s]", x.next, actual)
+        }
+    }
+}
+
+func TestDecIP(t *testing.T) {
+    service := getService()
+    type temp struct {
+        input net.IP
+        prev  net.IP
+    }
+
+    m := []temp{
+        {input: net.IP([]byte{165, 137, 176, 5}), prev: net.IP([]byte{165, 137, 176, 4})},
+        {input: net.IP([]byte{165, 137, 176, 0}), prev: net.IP([]byte{165, 137, 175, 255})},
+    }
+
+    for _, x := range m {
+        actual := service.DecIP(x.input)
+
+        if x.prev.String() != actual.String() {
+            t.Fatalf("expected[%s] != actual[%s]", x.prev, actual)
+        }
+    }
+}
+
+func TestSubnetEnumerate(t *testing.T) {
+    service := getService()
+
+    type temp struct {
+        cidr      string
+        length    int
+        network   net.IP
+        broadcast net.IP
+    }
+
+    m := []temp{
+        {
+            cidr:"165.137.176.0/24",
+            length: 256,
+            network: net.IP([]byte{165, 137, 176, 0}),
+            broadcast: net.IP([]byte{165, 137, 176, 255}),
+        },
+        {
+            cidr:"165.137.176.0/16",
+            length: 65536,
+            network: net.IP([]byte{165, 137, 0, 0}),
+            broadcast: net.IP([]byte{165, 137, 255, 255}),
+        },
+    }
+
+    for _, x := range m {
+        ips, err := service.SubnetEnumerateFromCidr(x.cidr)
+
+        if err != nil {
+            t.Errorf("EnumerateSubnetFromCidr(%s) err: %v", x.cidr, err)
+        }
+
+        if x.length != len(ips) {
+            t.Errorf("x.length(%s) != len(ips): %v", x.length, len(ips))
+        }
+
+        if x.network.String() != ips[0].String() {
+            t.Errorf("network not equal [%s] != %s", x.network, ips[0])
+        }
+
+        lastIndex := len(ips) - 1
+
+        if x.broadcast.String() != ips[lastIndex].String() {
+            t.Errorf("network not equal [%s] != %s", x.network, ips[lastIndex])
+        }
+    }
+}
+
+func TestSubnetEndpoints(t *testing.T) {
+    service := getService()
+
+    type temp struct {
+        cidr      string
+        network   string
+        broadcast string
+    }
+
+    m := []temp{
+        {
+            cidr:"165.137.176.0/24",
+            network:"165.137.176.0",
+            broadcast:"165.137.176.255",
+        },
+        {
+            cidr:"165.137.176.0/16",
+            network: "165.137.0.0",
+            broadcast: "165.137.255.255",
+        },
+    }
+
+    for _, x := range m {
+        ips, err := service.SubnetEndpointsFromCidr(x.cidr)
+
+        if err != nil {
+            t.Errorf("EnumerateSubnetFromCidr(%s) err: %v", x.cidr, err)
+        }
+
+        if 2 != len(ips) {
+            t.Errorf("x.length(%s) != len(ips): %v", 2, len(ips))
+        }
+
+        if x.network != ips[0].String() {
+            t.Errorf("network not equal [%s] != %s", x.network, ips[0])
+        }
+
+        lastIndex := len(ips) - 1
+
+        if x.broadcast != ips[lastIndex].String() {
+            t.Errorf("network not equal [%s] != %s", x.network, ips[lastIndex])
+        }
+    }
+}
+
 func TestDedup(t *testing.T) {
+    service := getService()
+
     input := []string{
         "10.189.4.10",
         "10.189.4.10",
@@ -19,7 +209,7 @@ func TestDedup(t *testing.T) {
     expected1 := "10.189.4.254"
     expected2 := "10.189.4.200"
 
-    output := dedup(input)
+    output := service.dedup(input)
 
     actualLen := len(output)
     actual0 := output[0]
@@ -40,79 +230,5 @@ func TestDedup(t *testing.T) {
 
     if actual2 != expected2 {
         t.Errorf("output[2][%s] doesn't match %s", actual2, expected2)
-    }
-}
-
-func TestHighlow(t *testing.T) {
-    input := []net.IP{
-        net.ParseIP("10.189.4.10"),
-        net.ParseIP("10.189.4.1"),
-        net.ParseIP("10.189.4.254"),
-        net.ParseIP("10.189.4.200"),
-    }
-
-    hl := highlow(input)
-
-    if len(hl) != 2 {
-        t.Errorf("len(hl)[%d] doesn't match 2", 2)
-    }
-
-    if hl[0].String() != "10.189.4.1" {
-        t.Errorf("hl[0][%s] doesn't match 10.189.4.1", hl[0])
-    }
-
-    if hl[1].String() != "10.189.4.254" {
-        t.Errorf("hl[1][%s] doesn't match 10.189.4.254", hl[1])
-    }
-}
-
-func TestIprange(t *testing.T) {
-    iprange, err := iprange("10.189.4.0/24")
-
-    if err != nil {
-        t.Errorf("iprange(10.189.4.0/24) err", err.Error())
-    }
-
-    iplen := len(iprange)
-    lastIndex := iplen - 1
-
-    if len(iprange) != 254 {
-        t.Errorf("len(iprange)[%d] doesn't match 254", iplen)
-    }
-
-    if iprange[0].String() != "10.189.4.1" {
-        t.Errorf("iprange[0][%s] doesn't match 10.189.4.1", iprange[0])
-    }
-
-    if iprange[lastIndex].String() != "10.189.4.254" {
-        t.Errorf("iprange[%d][%s] doesn't match 10.189.4.254", lastIndex, iprange[lastIndex])
-    }
-}
-
-func TestInc(t *testing.T) {
-    netIp := net.ParseIP("10.189.4.1")
-    nextIp := inc(netIp)
-
-    if nextIp.String() != "10.189.4.2" {
-        t.Errorf("nextIp[%s] doesn't match 10.189.4.2", netIp)
-    }
-}
-
-func TestIp2Int(t *testing.T) {
-    netIp := net.ParseIP("10.189.4.1")
-    intIp := ip2int(netIp)
-
-    if intIp != uint32(180159489) {
-        t.Errorf("intIp[%d] doesn't match 180159489", intIp)
-        t.Fail()
-    }
-}
-
-func TestInt2Ip(t *testing.T) {
-    input := uint32(180159489)
-    netIp := int2ip(input)
-
-    if netIp.String() != "10.189.4.1" {
-        t.Errorf("netIp[%s] doesn't match 10.189.4.2", netIp)
     }
 }

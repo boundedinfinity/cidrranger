@@ -7,19 +7,22 @@ import (
 )
 
 func main() {
-    file, err := os.Open("./subnet-list-1.txt")
-    //file, err := os.Open("./subnet-list-2.txt")
+    logger := log.New(os.Stdout, "", log.Lshortfile)
+    service, err := calc.NewCalculatorService(
+        calc.InputPath("./subnet-list-1.txt"),
+        calc.Logger(logger),
+        calc.Debug(true),
+    )
 
     if err != nil {
-        log.Fatal(err)
+        logger.Fatal(err)
+        return
     }
 
-    defer file.Close()
-
-    if highlow, err := calc.FullRange(file); err != nil {
-        log.Fatal(err)
+    if highlow, err := service.FullRange(); err != nil {
+        logger.Fatal(err)
     } else {
-        log.Printf("l[%s] - h[%s]", highlow[0], highlow[1])
+        logger.Printf("l[%s] - h[%s]", highlow[0], highlow[1])
     }
 }
 
