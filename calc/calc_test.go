@@ -14,6 +14,27 @@ func getService() *CalculatorService {
     return service
 }
 
+func TestCidrFromParsedIPs(t *testing.T) {
+    service := getService()
+    type temp struct {
+        input []string
+    }
+
+    data := []temp{
+        {input: []string{"165.137.176.0", "165.137.177.255"}, },
+    }
+
+    for _, datum := range data {
+        output, err := service.CidrFromParsedIPs(datum.input)
+
+        if err != nil {
+            t.Fatal(err)
+        }
+
+        service.Logger.Printf("%v", output)
+    }
+}
+
 func TestNetworkAddressFromCidr(t *testing.T) {
     service := getService()
     m := map[string]net.IP{
@@ -167,6 +188,11 @@ func TestSubnetEndpoints(t *testing.T) {
             cidr:"165.137.176.0/16",
             network: "165.137.0.0",
             broadcast: "165.137.255.255",
+        },
+        {
+            cidr:"165.137.176.0/23",
+            network: "165.137.176.0",
+            broadcast: "165.137.177.255",
         },
     }
 

@@ -4,7 +4,54 @@ import (
     "net"
     "encoding/binary"
     "math"
+    //"strconv"
+    "github.com/pkg/errors"
 )
+
+func (this *CalculatorService) CidrFromParsedIPs(ips []string) ([]*net.IPNet, error) {
+    parsedIps := make([]net.IP, 0)
+
+    for i, ip := range ips {
+        pip := net.ParseIP(ip)
+
+        if pip == nil {
+            return nil, errors.Errorf("unsable to parse ips[%d] == %s", i, ip)
+        }
+
+        parsedIps = append(parsedIps, pip)
+    }
+
+    return this.CidrFromIPs(parsedIps), nil
+}
+
+func (this *CalculatorService) CidrFromIPs(ips []net.IP) []*net.IPNet {
+    ns := make([]*net.IPNet, 0)
+    upperLower := this.UpperLowerIP(ips)
+
+    type xxxx struct {
+        n     net.IPNet
+        found bool
+    }
+
+    um := make(map[string]xxxx)
+    lm := make(map[string]xxxx)
+
+    for ones := 1; ones <= 32; ones++ {
+        m := net.CIDRMask(ones, net.IPv4len * 8)
+        unet := &net.IPNet{ IP: upperLower[1], Mask: m, }
+        lnet := &net.IPNet{ IP: upperLower[0], Mask: m, }
+
+
+
+        this.Logger.Printf("========> [%d] mask(hex): %s", ones, m)
+        this.Logger.Printf("========> ipnet: %s", n.String())
+        this.Logger.Printf("========> first: %s, last: %s", endpoints[0], endpoints[1])
+        //this.Logger.Printf("========> mask: %s", strconv.FormatUint(imask, 2))
+
+    }
+
+    return ns
+}
 
 func (this *CalculatorService) NetworkAddressFromCidr(cidr string) (net.IP, error) {
     _, n, err := net.ParseCIDR(cidr)
@@ -34,7 +81,14 @@ func (this *CalculatorService) BroadcastAddress(n *net.IPNet) net.IP {
     cidrMask := net.CIDRMask(n.Mask.Size())
     broadcast := net.IP(make([]byte, 4))
 
-    for i, _ := range n.IP {
+    //if this.Debug {
+    //    this.Logger.Printf("len(broadcast): %d", len(broadcast))
+    //    this.Logger.Printf("len(n.IP.To4()): %d", len(n.IP.To4()))
+    //    this.Logger.Printf("len(n.IP): %d", len(n.IP))
+    //    this.Logger.Printf("len(cidrMask): %d", len(cidrMask))
+    //}
+
+    for i, _ := range n.IP.To4() {
         broadcast[i] = n.IP[i] | ^cidrMask[i]
     }
 
@@ -147,7 +201,7 @@ func (this *CalculatorService) UpperLowerIP(ips []net.IP) []net.IP {
         }
     }
 
-    return []net.IP{ int2ip(l), int2ip(h)}
+    return []net.IP{int2ip(l), int2ip(h)}
 }
 
 func (this *CalculatorService) UpperIP(ips []net.IP) net.IP {
